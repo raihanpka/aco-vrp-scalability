@@ -10,5 +10,4 @@ Tests cover:
     Convergence behavior on small instances
 """
 
-
 # Tests will be implemented alongside the core module.

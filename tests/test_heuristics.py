@@ -8,5 +8,4 @@ Tests cover:
     Edge cases: single customer, no feasible route, all customers at depot
 """
 
-
 # Tests will be implemented alongside the heuristics module.
