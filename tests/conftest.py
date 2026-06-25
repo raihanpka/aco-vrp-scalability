@@ -7,7 +7,6 @@ Provides reusable pytest fixtures including:
     rc101_instance     The full Solomon RC101 instance (requires data download).
 """
 
-
 # Fixtures will be defined here as the implementation progresses.
 # Example:
 # @pytest.fixture
