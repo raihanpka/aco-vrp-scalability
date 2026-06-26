@@ -30,8 +30,17 @@ def download_solomon(force: bool = False) -> None:
             SOLOMON_ZIP_URL,
             headers={"User-Agent": "Mozilla/5.0 (research-download)"},
         )
+        """
+        Header User-Agent ditambahkan karena server SINTEF memblokir request yang tidak terlihat seperti browser. 
+        Kalau download gagal, script langsung berhenti dengan pesan error.
+        """
+
         with urllib.request.urlopen(req, timeout=30) as response:
             zip_bytes = response.read()
+        """
+        ZIP dibuka di memory (tidak disimpan ke disk dulu), lalu semua file .txt di dalamnya diekstrak ke data/solomon/. 
+        Kalau file sudah ada dan tidak pakai --force, file tersebut dilewati (skip) supaya tidak menimpa yang sudah ada.
+        """
     except Exception as exc:
         print(f"ERROR: Download failed: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -41,6 +50,11 @@ def download_solomon(force: bool = False) -> None:
         if not txt_members:
             print("ERROR: No .txt files found in archive.", file=sys.stderr)
             sys.exit(1)
+        """
+        zipfile.ZipFile(io.BytesIO(zip_bytes)) membuka zip file dari bytes
+        .namelist() mendapatkan daftar semua file dalam zip
+        m.lower().endswith(".txt") memfilter hanya file .txt
+        """
 
         extracted = 0
         skipped = 0
@@ -60,7 +74,7 @@ def download_solomon(force: bool = False) -> None:
         print("WARNING: RC101.txt not found in archive.", file=sys.stderr)
         sys.exit(1)
 
-    text = rc101.read_text().splitlines()
+    text = rc101.read_text().splitlines() 
     in_customer_section = False
     customer_rows = []
     for line in text:
@@ -72,10 +86,11 @@ def download_solomon(force: bool = False) -> None:
             if len(parts) >= 7 and parts[0].isdigit() and int(parts[0]) > 0:
                 customer_rows.append(line)
     print(f"Verified RC101.txt: {len(customer_rows)} customers found (expected 100).")
-
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download Solomon VRPTW benchmark instances.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files.")
     args = parser.parse_args()
     download_solomon(force=args.force)
+    
