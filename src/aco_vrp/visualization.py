@@ -190,7 +190,7 @@ def plot_scalability(
                     label=label,
                 )
 
-    ax.legend(frameon=False, loc="upper left")
+    ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.18), ncol=4, fontsize=8)
     ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.5, alpha=0.7)
     fig.tight_layout()
     _save(fig, output_path)
@@ -236,7 +236,7 @@ def plot_convergence(
             )
 
     if axes[-1].get_legend_handles_labels()[0]:
-        axes[-1].legend(frameon=False, loc="upper right", fontsize=7)
+        axes[-1].legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.25), fontsize=7, ncol=4)
     fig.tight_layout()
     _save(fig, output_path)
     plt.close(fig)
@@ -386,106 +386,98 @@ def plot_route_map(
     instance: Any,
     solution: Any,
     title: str = "ACO Route Map",
-    output_path: str = "results/route_map.pdf",
+    output_path: str = "results/route_map.svg",
 ) -> None:
-    """Plot customer locations and vehicle routes on a 2-D coordinate plane.
+    """Plot customers and directed vehicle routes on a 2-D coordinate plane.
 
-    Customers are drawn as small circles with their node index. The depot
-    is drawn as a filled square. Each route is a polyline connecting
-    customers in visit order, with a distinct line style. Segments to and
-    from the depot are drawn as dotted lines.
+    Each route segment carries an arrowhead indicating travel direction.
+    Visit order numbers are shown beside each node. The depot is a filled
+    square and customers are hollow circles.
 
     Args:
-        instance: CVRPInstance providing .depot and .customers with .x, .y.
-        solution: CVRPSolution providing .routes (list of lists of node indices).
+        instance: CVRPInstance with .depot (has .x, .y) and .customers
+                  (list of Customer with .x, .y).
+        solution: CVRPSolution with .routes (list of lists of node indices 1..N).
         title: Plot title.
-        output_path: Path for the saved figure.
+        output_path: Path for the saved SVG.
     """
-    route_styles = [
-        {"linestyle": "-", "linewidth": 1.2},
-        {"linestyle": "--", "linewidth": 1.2},
-        {"linestyle": "-.", "linewidth": 1.2},
-        {"linestyle": (0, (3, 2, 1, 2)), "linewidth": 1.2},
-        {"linestyle": (0, (1, 1)), "linewidth": 0.9},
-        {"linestyle": (0, (5, 3)), "linewidth": 0.9},
-        {"linestyle": "-", "linewidth": 0.7},
-        {"linestyle": "--", "linewidth": 0.7},
-        {"linestyle": "-.", "linewidth": 0.7},
-        {"linestyle": (0, (3, 2, 1, 2)), "linewidth": 0.7},
-    ]
-
-    fig, ax = plt.subplots(figsize=(8, 7))
-    ax.set_aspect("equal")
-
-    # Plot customers
-    xs = [c.x for c in instance.customers]
-    ys = [c.y for c in instance.customers]
-    ax.scatter(xs, ys, s=18, marker="o", facecolor="white",
-               edgecolor=GRAY_DARK, linewidth=0.5, zorder=3)
-
-    # Plot depot
-    ax.scatter([instance.depot.x], [instance.depot.y], s=60, c=GRAY_DARK,
-               marker="s", zorder=4)
-    ax.text(instance.depot.x, instance.depot.y + 1.5, "Depot",
-            ha="center", fontsize=7, fontweight="bold")
-
-    legend_elements: list[Any] = []
+    from matplotlib.patches import FancyArrowPatch
     from matplotlib.lines import Line2D
 
-    legend_elements.append(
+    route_styles = [
+        "-", "--", "-.", (0, (3, 2, 1, 2)),
+        (0, (1, 1)), (0, (5, 3)), "-", "--", "-.", (0, (3, 2, 1, 2)),
+    ]
+
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.set_aspect("equal")
+
+    xs = [c.x for c in instance.customers]
+    ys = [c.y for c in instance.customers]
+    ax.scatter(xs, ys, s=22, marker="o", facecolor="white",
+               edgecolor=GRAY_DARK, linewidth=0.7, zorder=3)
+    ax.scatter([instance.depot.x], [instance.depot.y], s=70, marker="s",
+               c=GRAY_DARK, zorder=4)
+    ax.text(instance.depot.x, instance.depot.y + 2.0, "Depot",
+            ha="center", fontsize=8, fontweight="bold")
+
+    legend_handles = [
         Line2D([0], [0], marker="s", color=GRAY_DARK, markerfacecolor=GRAY_DARK,
-               markersize=8, linestyle="none", label="Depot")
-    )
-    legend_elements.append(
+               markersize=9, linestyle="none", label="Depot"),
         Line2D([0], [0], marker="o", color=GRAY_DARK, markerfacecolor="white",
-               markersize=7, linestyle="none", label="Customer")
-    )
+               markeredgecolor=GRAY_DARK, markersize=8, linestyle="none",
+               label="Customer"),
+    ]
+
+    def _draw_arrow(src_x, src_y, dst_x, dst_y, linestyle, lw, arrow_zorder):
+        alpha_val = 1.0 if linestyle == "-" else 0.85
+        arrow = FancyArrowPatch(
+            (src_x, src_y), (dst_x, dst_y),
+            arrowstyle="-|>", mutation_scale=12,
+            color=GRAY_DARK, linestyle=linestyle, linewidth=lw,
+            alpha=alpha_val, zorder=arrow_zorder,
+        )
+        ax.add_patch(arrow)
+
+    visit_counter: dict[int, int] = {}
 
     for ri, route in enumerate(solution.routes):
         if not route:
             continue
-        style = route_styles[ri % len(route_styles)]
-        label = f"Vehicle {ri + 1}" if ri < 8 else None
+        sty = route_styles[ri % len(route_styles)]
+        lw = 1.2 if ri < 6 else 0.7
+        label = f"Vehicle {ri + 1}"
 
-        # Depot to first customer (dotted)
-        ax.plot(
-            [instance.depot.x, instance.customers[route[0] - 1].x],
-            [instance.depot.y, instance.customers[route[0] - 1].y],
-            color=GRAY_DARK, linestyle=":", linewidth=0.5, zorder=1,
+        prev_x, prev_y = instance.depot.x, instance.depot.y
+
+        for pos, node_idx in enumerate(route):
+            c = instance.customers[node_idx - 1]
+            _draw_arrow(prev_x, prev_y, c.x, c.y, sty, lw, 2)
+
+            visit_counter[node_idx] = visit_counter.get(node_idx, 0) + 1
+            order_num = visit_counter[node_idx]
+            offset_x = 0.8 if order_num == 1 else -0.8
+            offset_y = 0.8 if order_num == 1 else -0.8
+            ax.text(c.x + offset_x, c.y + offset_y, str(pos + 1),
+                    fontsize=5.5, ha="center", va="center", color=GRAY_DARK,
+                    fontweight="bold", zorder=5)
+
+            prev_x, prev_y = c.x, c.y
+
+        _draw_arrow(prev_x, prev_y, instance.depot.x, instance.depot.y, ":", 0.6, 1)
+
+        legend_handles.append(
+            Line2D([0], [0], color=GRAY_DARK, linestyle=sty,
+                   linewidth=lw, label=label)
         )
 
-        # Customer to customer
-        path_x = [instance.customers[node - 1].x for node in route]
-        path_y = [instance.customers[node - 1].y for node in route]
-        ax.plot(path_x, path_y, color=GRAY_DARK, linestyle=style["linestyle"],
-                linewidth=style["linewidth"], zorder=2)
-
-        # Last customer to depot (dotted)
-        ax.plot(
-            [instance.customers[route[-1] - 1].x, instance.depot.x],
-            [instance.customers[route[-1] - 1].y, instance.depot.y],
-            color=GRAY_DARK, linestyle=":", linewidth=0.5, zorder=1,
-        )
-
-        if label:
-            legend_elements.append(
-                Line2D([0], [0], color=GRAY_DARK, linestyle=style["linestyle"],
-                       linewidth=style["linewidth"], label=label)
-            )
-
-    legend_elements.append(
-        Line2D([0], [0], color=GRAY_DARK, linestyle=":", linewidth=0.5,
-               label="Depot connection")
+    legend_handles.append(
+        Line2D([0], [0], color=GRAY_DARK, linestyle=":", linewidth=0.6,
+               label="Return to depot")
     )
 
-    ax.legend(handles=legend_elements, frameon=False, loc="upper left",
-              fontsize=7, ncol=2)
-
-    # Annotate a few key customers
-    for c in instance.customers[:10]:
-        ax.text(c.x + 0.6, c.y + 0.6, str(c.index + 1),
-                fontsize=5, ha="center", va="center", color=GRAY_MEDIUM)
-
+    ax.legend(handles=legend_handles, frameon=False, loc="lower center",
+              bbox_to_anchor=(0.5, -0.18), fontsize=7, ncol=3)
     ax.set_xlabel("X Coordinate")
     ax.set_ylabel("Y Coordinate")
     ax.set_title(title)
@@ -497,39 +489,64 @@ def plot_route_map(
 
 def plot_route_animation(
     instance: Any,
-    route_history: list[list[list[int]]],
+    solution: Any,
     output_path: str = "results/route_evolution.mp4",
-    fps: int = 10,
+    fps: int = 3,
 ) -> None:
-    """Create an MP4 video showing ACO route evolution over iterations.
+    """Create an MP4 video showing routes built edge by edge with direction.
 
-    Each frame displays customer locations, the depot, and the best routes
-    found up to that iteration. The title shows the iteration number.
+    Each edge is drawn as an arrow from source to destination, one at a
+    time. The depot icon stays on screen. The title shows which vehicle
+    and edge is being drawn. Pauses between edges let the viewer follow
+    the construction sequence.
 
     Requires ffmpeg installed for MP4 output.
 
     Args:
-        instance: CVRPInstance providing .depot and .customers.
-        route_history: List of routes per iteration from ACO.route_history.
+        instance: CVRPInstance with .depot and .customers.
+        solution: CVRPSolution with .routes (list of lists of node indices).
         output_path: Path for the saved video.
-        fps: Frames per second.
+        fps: Frames per second (low = slower).
     """
     from matplotlib.animation import FuncAnimation, FFMpegWriter
-
-    fig, ax = plt.subplots(figsize=(8, 7))
-    ax.set_aspect("equal")
-    ax.set_xlabel("X Coordinate")
-    ax.set_ylabel("Y Coordinate")
-    ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+    from matplotlib.patches import FancyArrowPatch
 
     xs = [c.x for c in instance.customers]
     ys = [c.y for c in instance.customers]
-    route_styles = [
-        "-", "--", "-.", (0, (3, 2, 1, 2)),
-        (0, (1, 1)), (0, (5, 3)), "-", "--",
-    ]
+    route_styles = ["-", "--", "-.", (0, (3, 2, 1, 2)),
+                    (0, (1, 1)), (0, (5, 3)), "-", "--", "-."]
 
-    def update(frame: int) -> list[Any]:
+    frames_data: list[tuple[int, float, float, float, float, str, float]] = []
+    for ri, route in enumerate(solution.routes):
+        if not route:
+            continue
+        sty = route_styles[ri % len(route_styles)]
+        lw = 1.2 if ri < 6 else 0.7
+        prev_x, prev_y = instance.depot.x, instance.depot.y
+        for pos, node_idx in enumerate(route):
+            c = instance.customers[node_idx - 1]
+            direction = f"Vehicle {ri + 1}: depot" if pos == 0 else ""
+            if pos == 0:
+                direction = f"Vehicle {ri + 1}: depot to node {node_idx}"
+            else:
+                direction = f"Vehicle {ri + 1}: node {route[pos - 1]} to node {node_idx}"
+            for _ in range(4):
+                frames_data.append((ri, prev_x, prev_y, c.x, c.y, sty, lw))
+            prev_x, prev_y = c.x, c.y
+        for _ in range(4):
+            frames_data.append((ri, prev_x, prev_y, instance.depot.x, instance.depot.y, ":", 0.6))
+
+    if not frames_data:
+        return
+
+    for _ in range(fps * 6):
+        frames_data.append(frames_data[-1])
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.set_aspect("equal")
+    drawn: set[tuple[int, int, int, int]] = set()
+
+    def update(frame_idx: int) -> list[Any]:
         ax.clear()
         ax.set_aspect("equal")
         ax.scatter(
@@ -546,48 +563,42 @@ def plot_route_animation(
         )
         ax.set_xlabel("X Coordinate")
         ax.set_ylabel("Y Coordinate")
-        ax.grid(
-            True, linestyle=":", color=GRAY_LIGHT,
-            linewidth=0.3, alpha=0.5,
-        )
+        ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
 
-        iteration_sol = route_history[min(frame, len(route_history) - 1)]
+        ri, sx, sy, dx, dy, sty, lw = frames_data[min(frame_idx, len(frames_data) - 1)]
+        edge_key = (int(sx * 1000), int(sy * 1000), int(dx * 1000), int(dy * 1000))
+        drawn.add(edge_key)
+
         artists: list[Any] = []
+        for key in drawn:
+            _sx, _sy, _dx, _dy = key
+            _sx_f = _sx / 1000
+            _sy_f = _sy / 1000
+            _dx_f = _dx / 1000
+            _dy_f = _dy / 1000
+            arrow = FancyArrowPatch(
+                (_sx_f, _sy_f), (_dx_f, _dy_f),
+                arrowstyle="-|>", mutation_scale=10,
+                color=GRAY_DARK, linewidth=1.0, alpha=0.6,
+                linestyle=sty, zorder=2,
+            )
+            ax.add_patch(arrow)
+            artists.append(arrow)
 
-        for ri, route in enumerate(iteration_sol):
-            if not route:
-                continue
-            sty = route_styles[ri % len(route_styles)]
-            artists += ax.plot(
-                [instance.depot.x, instance.customers[route[0] - 1].x],
-                [instance.depot.y, instance.customers[route[0] - 1].y],
-                color=GRAY_DARK, linestyle=":", linewidth=0.4, zorder=1,
-            )
-            px = [instance.customers[n - 1].x for n in route]
-            py = [instance.customers[n - 1].y for n in route]
-            artists += ax.plot(
-                px, py, color=GRAY_DARK,
-                linestyle=sty, linewidth=1.0, zorder=2,
-            )
-            artists += ax.plot(
-                [instance.customers[route[-1] - 1].x, instance.depot.x],
-                [instance.customers[route[-1] - 1].y, instance.depot.y],
-                color=GRAY_DARK, linestyle=":", linewidth=0.4, zorder=1,
-            )
+        title_parts = []
+        for r_idx, r in enumerate(solution.routes):
+            if r:
+                title_parts.append(f"V{r_idx + 1}: {len(r)} stops")
+        ax.set_title(" | ".join(title_parts), fontsize=9)
 
-        ax.set_title(f"Iteration {frame + 1} / {len(route_history)}")
         return artists
 
-    step = max(1, len(route_history) // 200)
-    frames = list(range(0, len(route_history), step))
-    if not frames or frames[-1] != len(route_history) - 1:
-        frames.append(len(route_history) - 1)
-
     anim = FuncAnimation(
-        fig, update, frames=frames, interval=1000 // fps, blit=False,
+        fig, update, frames=len(frames_data),
+        interval=1000 // fps, blit=False,
     )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    writer = FFMpegWriter(fps=fps, metadata={"title": "ACO Route Evolution"})
+    writer = FFMpegWriter(fps=fps, metadata={"title": "ACO Route Construction"})
     anim.save(str(output_path), writer=writer)
     plt.close(fig)
 
@@ -644,3 +655,127 @@ def plot_cd_from_results(
     cd_threshold = q_alpha * np.sqrt(k * (k + 1) / (6.0 * n))
 
     plot_critical_difference(cd_data, cd_threshold, output_path)
+
+
+def plot_3d_pheromone_surface(
+    instance: Any,
+    tau: Any,
+    output_path: str = "results/pheromone_3d.svg",
+) -> None:
+    """Plot a 3-D surface of interpolated pheromone concentration.
+
+    Interpolates pheromone values from the node graph onto a rectangular
+    grid covering the customer coordinate range. The surface height
+    represents pheromone intensity. Higher peaks indicate edges strongly
+    favored by the ant colony.
+
+    Args:
+        instance: CVRPInstance providing customer coordinates.
+        tau: NxN pheromone matrix from ACO (numpy array).
+        output_path: Path for the saved SVG.
+    """
+    from matplotlib import cm
+    from scipy.interpolate import griddata
+
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection="3d")
+
+    n_cust = len(instance.customers)
+    grid_xi = np.linspace(0, 60, 40)
+    grid_yi = np.linspace(30, 90, 40)
+    grid_x, grid_y = np.meshgrid(grid_xi, grid_yi)
+
+    points = []
+    values = []
+    for i in range(1, n_cust + 1):
+        for j in range(1, n_cust + 1):
+            if i == j:
+                continue
+            mid_x = (instance.customers[i - 1].x + instance.customers[j - 1].x) / 2
+            mid_y = (instance.customers[i - 1].y + instance.customers[j - 1].y) / 2
+            points.append((mid_x, mid_y))
+            values.append(float(tau[i, j]))
+
+    points_arr = np.array(points)
+    values_arr = np.array(values)
+    grid_z = griddata(points_arr, values_arr, (grid_x, grid_y), method="linear", fill_value=0.0)
+
+    surf = ax.plot_surface(grid_x, grid_y, grid_z, cmap=cm.viridis,
+                           linewidth=0, antialiased=True, alpha=0.9)
+    ax.scatter(
+        [c.x for c in instance.customers],
+        [c.y for c in instance.customers],
+        np.zeros(n_cust),
+        c="black", s=15, marker="o", zorder=5,
+    )
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Pheromone")
+    ax.set_title("Pheromone Concentration Surface After ACO")
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label="Pheromone Level")
+    fig.tight_layout()
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(path.with_suffix(".svg")), format="svg")
+    plt.close(fig)
+
+
+def plot_3d_scalability_surface(
+    results: dict[tuple[str, int, int], dict[str, Any]],
+    size: int = 100,
+    output_path: str = "results/scalability_3d.svg",
+) -> None:
+    """Plot a 3-D wireframe surface of mean distance vs alpha and beta.
+
+    Each of the 4 configurations defines one corner of the (alpha, beta)
+    grid. The surface interpolates performance between them.
+
+    Args:
+        results: ACO run metrics keyed by (config_id, size, seed).
+        size: Problem size to analyze.
+        output_path: Path for the saved SVG.
+    """
+    from matplotlib import cm
+
+    alphas = np.array([1.0, 2.0])
+    betas = np.array([2.0, 5.0])
+    alpha_grid, beta_grid = np.meshgrid(alphas, betas)
+    dist_grid = np.zeros_like(alpha_grid)
+
+    for ci, alpha in enumerate(alphas):
+        for bi, beta in enumerate(betas):
+            cid = f"C{ci + bi * 2 + 1}"
+            if cid == "C2":
+                cid = "C2"
+            vals: list[float] = []
+            for c in ["C1", "C2", "C3", "C4"]:
+                a_val = 1.0 if c in ("C1", "C2") else 2.0
+                b_val = 2.0 if c in ("C1", "C3") else 5.0
+                if abs(a_val - alpha) < 0.01 and abs(b_val - beta) < 0.01:
+                    for seed in range(30):
+                        key = (c, size, seed)
+                        if key in results:
+                            vals.append(float(results[key]["total_distance"]))
+                    break
+            if vals:
+                dist_grid[bi, ci] = np.mean(vals)
+            else:
+                dist_grid[bi, ci] = np.nan
+
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.plot_wireframe(alpha_grid, beta_grid, dist_grid, color=GRAY_DARK,
+                      linewidth=1.0)
+    ax.scatter(alpha_grid.ravel(), beta_grid.ravel(), dist_grid.ravel(),
+               c=np.array(dist_grid).ravel(), cmap=cm.plasma, s=60,
+               zorder=5)
+    ax.set_xlabel("Alpha")
+    ax.set_ylabel("Beta")
+    ax.set_zlabel("Mean Total Distance")
+    ax.set_title(f"Scalability Surface (Size = {size})")
+    fig.tight_layout()
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(path.with_suffix(".svg")), format="svg")
+    plt.close(fig)
