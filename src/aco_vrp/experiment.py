@@ -201,6 +201,7 @@ class ExperimentRunner:
             "feasible": solution.feasible,
             "convergence_iter": convergence_iter,
             "wall_time_sec": wall_time,
+            "convergence_history": conv_history,
         }
 
     @staticmethod

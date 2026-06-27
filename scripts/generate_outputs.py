@@ -21,12 +21,13 @@ from pathlib import Path
 import numpy as np
 
 from aco_vrp.core import ACO, ACOConfig
+from aco_vrp.experiment import ExperimentRunner
 from aco_vrp.problem import load_solomon
 from aco_vrp.visualization import (
     plot_3d_pheromone_surface,
     plot_3d_scalability_surface,
     plot_cd_from_results,
-    plot_critical_difference,
+    plot_convergence,
     plot_parameter_heatmap,
     plot_pheromone_animation,
     plot_route_map,
@@ -74,6 +75,26 @@ def main() -> None:
     inst = load_solomon("data/solomon/RC101.txt")
     config = ACOConfig(alpha=2.0, beta=2.0, rho=0.3, ant_count=10,
                        max_iterations=100, use_local_search=True)
+
+    conv_exp = ExperimentRunner(data_dir="data/solomon")
+    conv_results = conv_exp.run_full_matrix(seeds=3)
+    conv_data: dict[tuple[str, int], list[float]] = {}
+    counts: dict[tuple[str, int], int] = {}
+    for (config_id, size, _seed), metrics in conv_results.items():
+        history = metrics.get("convergence_history", [])
+        if not history:
+            continue
+        key = (config_id, size)
+        if key not in conv_data:
+            conv_data[key] = [0.0] * len(history)
+            counts[key] = 0
+        for i, val in enumerate(history):
+            if i < len(conv_data[key]):
+                conv_data[key][i] += val
+        counts[key] += 1
+    for key in conv_data:
+        conv_data[key] = [v / counts[key] for v in conv_data[key]]
+    print(f"Collected convergence data for {len(conv_data)} cells.\n")
 
     # Per-vehicle route maps + per-vehicle videos
     for size in [25, 50, 100]:
@@ -135,16 +156,56 @@ def main() -> None:
                          output_path=str(DIRS["aggregated"] / "critical_difference.svg"))
     print("aggregated/critical_difference.svg")
 
+    plot_convergence(conv_data,
+                     output_path=str(DIRS["aggregated"] / "convergence_curves.svg"))
+    print("aggregated/convergence_curves.svg")
+
     # Copy CSV data
     import shutil
+    import statistics
+
     for csv_file in ["raw_runs.csv", "baseline_runs.csv"]:
         src = BASE / csv_file
         if src.exists():
             shutil.copy2(src, DIRS["data"] / csv_file)
             print(f"data/{csv_file}")
 
-    shutil.copy2(BASE / "statistical_report.txt",
-                 DIRS["report"] / "statistical_report.txt")
+    from aco_vrp.analysis import StatisticalAnalyzer
+    analyzer = StatisticalAnalyzer(results, alpha=0.05)
+    report_path = DIRS["report"] / "statistical_report.txt"
+    with open(report_path, "w") as r:
+        for size in [25, 50, 100]:
+            r.write(f"Size = {size}\n")
+            try:
+                stat, pval = analyzer.friedman_test("total_distance", size)
+                sig = "SIGNIFICANT" if pval < 0.05 else "not significant"
+                r.write(f"Friedman: stat={stat:.4f}, p={pval:.6f} ({sig})\n")
+            except ValueError:
+                pass
+            configs = analyzer._discover_configs(size)
+            for i, ca in enumerate(configs):
+                for cb in configs[i + 1 :]:
+                    try:
+                        _, pval = analyzer.wilcoxon_signed_rank(ca, cb, "total_distance", size)
+                        r.write(f"  Wilcoxon {ca} vs {cb}: p={pval:.6f}")
+                        r.write(" *\n" if pval < 0.05 else "\n")
+                    except ValueError:
+                        pass
+            r.write("\n")
+        for cid in ["C1", "C2", "C3", "C4"]:
+            for sz in [25, 50, 100]:
+                vals = [
+                    v["total_distance"]
+                    for (c, s, _), v in results.items()
+                    if c == cid and s == sz
+                ]
+                if vals:
+                    r.write(
+                        f"{cid} size={sz}: "
+                        f"mean={statistics.mean(vals):.1f}, "
+                        f"std={statistics.stdev(vals):.1f}, "
+                        f"n={len(vals)}\n"
+                    )
     print("report/statistical_report.txt")
 
     elapsed = time.perf_counter() - start

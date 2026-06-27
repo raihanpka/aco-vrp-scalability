@@ -1,39 +1,39 @@
 Size = 25
-Friedman: stat=57.3200, p=0.000000 (SIGNIFICANT)
-  Wilcoxon C1 vs C2: p=0.000000 *
-  Wilcoxon C1 vs C3: p=0.700033
-  Wilcoxon C1 vs C4: p=0.009932 *
-  Wilcoxon C2 vs C3: p=0.000000 *
-  Wilcoxon C2 vs C4: p=0.000000 *
-  Wilcoxon C3 vs C4: p=0.005776 *
+Friedman: stat=7.0000, p=0.071898 (not significant)
+  Wilcoxon C1 vs C2: p=0.250000
+  Wilcoxon C1 vs C3: p=0.500000
+  Wilcoxon C1 vs C4: p=1.000000
+  Wilcoxon C2 vs C3: p=0.250000
+  Wilcoxon C2 vs C4: p=0.250000
+  Wilcoxon C3 vs C4: p=0.250000
 
 Size = 50
-Friedman: stat=7.4400, p=0.059120 (not significant)
-  Wilcoxon C1 vs C2: p=0.338742
-  Wilcoxon C1 vs C3: p=0.807830
-  Wilcoxon C1 vs C4: p=0.104840
-  Wilcoxon C2 vs C3: p=0.119077
-  Wilcoxon C2 vs C4: p=0.024786 *
-  Wilcoxon C3 vs C4: p=0.271006
+Friedman: stat=2.2000, p=0.531948 (not significant)
+  Wilcoxon C1 vs C2: p=1.000000
+  Wilcoxon C1 vs C3: p=1.000000
+  Wilcoxon C1 vs C4: p=0.750000
+  Wilcoxon C2 vs C3: p=0.750000
+  Wilcoxon C2 vs C4: p=0.250000
+  Wilcoxon C3 vs C4: p=0.500000
 
 Size = 100
-Friedman: stat=47.6000, p=0.000000 (SIGNIFICANT)
-  Wilcoxon C1 vs C2: p=0.000000 *
-  Wilcoxon C1 vs C3: p=0.000000 *
-  Wilcoxon C1 vs C4: p=0.000000 *
-  Wilcoxon C2 vs C3: p=0.024786 *
-  Wilcoxon C2 vs C4: p=0.349211
-  Wilcoxon C3 vs C4: p=0.145999
+Friedman: stat=7.0000, p=0.071898 (not significant)
+  Wilcoxon C1 vs C2: p=0.250000
+  Wilcoxon C1 vs C3: p=0.250000
+  Wilcoxon C1 vs C4: p=0.250000
+  Wilcoxon C2 vs C3: p=0.250000
+  Wilcoxon C2 vs C4: p=1.000000
+  Wilcoxon C3 vs C4: p=0.500000
 
-C1 size=25: mean=232.7, std=3.5, n=30
-C1 size=50: mean=399.7, std=13.0, n=30
-C1 size=100: mean=648.4, std=13.5, n=30
-C2 size=25: mean=260.2, std=7.3, n=30
-C2 size=50: mean=402.9, std=11.1, n=30
-C2 size=100: mean=612.7, std=10.8, n=30
-C3 size=25: mean=232.1, std=3.5, n=30
-C3 size=50: mean=397.9, std=16.1, n=30
-C3 size=100: mean=602.2, std=19.9, n=30
-C4 size=25: mean=236.3, std=6.8, n=30
-C4 size=50: mean=393.7, std=16.2, n=30
-C4 size=100: mean=608.6, std=15.8, n=30
+C1 size=25: mean=233.5, std=6.1, n=3
+C1 size=50: mean=404.0, std=6.1, n=3
+C1 size=100: mean=653.9, std=13.6, n=3
+C2 size=25: mean=263.5, std=1.4, n=3
+C2 size=50: mean=403.5, std=11.8, n=3
+C2 size=100: mean=619.2, std=12.8, n=3
+C3 size=25: mean=228.7, std=2.0, n=3
+C3 size=50: mean=405.0, std=18.2, n=3
+C3 size=100: mean=593.9, std=22.7, n=3
+C4 size=25: mean=235.5, std=4.4, n=3
+C4 size=50: mean=399.9, std=9.5, n=3
+C4 size=100: mean=618.7, std=9.8, n=3
