@@ -35,9 +35,3 @@ htmlcov/
 *.DS_Store
 Thumbs.db
 
-# Results (keep structure, ignore output files)
-results/*.png
-results/*.csv
-results/*.json
-results/*.html
-
