@@ -71,6 +71,7 @@ class ACO:
         self.rng: random.Random | None = None
         self.convergence_history: list[float] = []
         self.route_history: list[list[list[int]]] = []
+        self.pheromone_snapshots: list[np.ndarray] = []
 
     def solve(self, instance: CVRPInstance, seed: int = 0) -> CVRPSolution:
         """
@@ -103,8 +104,9 @@ class ACO:
         global_best_dist = float("inf")
         self.convergence_history = []
         self.route_history = []
+        self.pheromone_snapshots = []
 
-        for _ in range(self.config.max_iterations):
+        for iteration_counter in range(self.config.max_iterations):
             iteration_solutions: list[CVRPSolution] = []
             iteration_distances: list[float] = []
 
@@ -183,6 +185,9 @@ class ACO:
                     prev = node
                 tau[prev, 0] += deposit
                 tau[0, prev] += deposit
+
+            if (iteration_counter + 1) % 5 == 0:
+                self.pheromone_snapshots.append(tau.copy())
 
         # Finalize global best solution fields
         global_best_sol.total_distance = global_best_dist

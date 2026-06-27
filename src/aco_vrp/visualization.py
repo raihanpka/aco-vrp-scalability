@@ -487,120 +487,198 @@ def plot_route_map(
     plt.close(fig)
 
 
-def plot_route_animation(
+def plot_pheromone_animation(
     instance: Any,
-    solution: Any,
-    output_path: str = "results/route_evolution.mp4",
-    fps: int = 3,
+    pheromone_snapshots: list[Any],
+    output_path: str = "results/pheromone_evolution.mp4",
+    fps: int = 2,
 ) -> None:
-    """Create an MP4 video showing routes built edge by edge with direction.
+    """Animate pheromone concentration on edges over ACO iterations.
 
-    Each edge is drawn as an arrow from source to destination, one at a
-    time. The depot icon stays on screen. The title shows which vehicle
-    and edge is being drawn. Pauses between edges let the viewer follow
-    the construction sequence.
-
-    Requires ffmpeg installed for MP4 output.
+    Each frame shows all customer positions with edges drawn at opacity
+    proportional to pheromone level. Thicker and darker edges indicate
+    stronger pheromone trails. The title shows the iteration number.
 
     Args:
         instance: CVRPInstance with .depot and .customers.
-        solution: CVRPSolution with .routes (list of lists of node indices).
-        output_path: Path for the saved video.
-        fps: Frames per second (low = slower).
+        pheromone_snapshots: List of (N+1)x(N+1) tau matrices.
+        output_path: MP4 output path.
+        fps: Frames per second.
+    """
+    from matplotlib.animation import FuncAnimation, FFMpegWriter
+
+    n = len(instance.customers) + 1
+    all_tau = pheromone_snapshots
+    if not all_tau:
+        return
+    max_tau = float(max(np.max(t) for t in all_tau))
+
+    xs = [c.x for c in instance.customers]
+    ys = [c.y for c in instance.customers]
+
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.set_aspect("equal")
+
+    def update(frame_idx: int) -> list[Any]:
+        ax.clear()
+        ax.set_aspect("equal")
+        ax.scatter(
+            xs, ys, s=18, marker="o", facecolor="white",
+            edgecolor=GRAY_DARK, linewidth=0.7, zorder=4,
+        )
+        ax.scatter(
+            [instance.depot.x], [instance.depot.y],
+            s=70, c=GRAY_DARK, marker="s", zorder=5,
+        )
+        ax.text(
+            instance.depot.x, instance.depot.y + 1.5, "Depot",
+            ha="center", fontsize=8, fontweight="bold",
+        )
+        ax.set_xlabel("X Coordinate")
+        ax.set_ylabel("Y Coordinate")
+        ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+
+        tau = all_tau[min(frame_idx, len(all_tau) - 1)]
+        artists: list[Any] = []
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                val = float(tau[i, j])
+                if val < max_tau * 0.01:
+                    continue
+                alpha = min(val / max_tau, 1.0) * 0.8
+                lw = max(0.2, (val / max_tau) * 3.0)
+                if i == 0:
+                    x1, y1 = instance.depot.x, instance.depot.y
+                else:
+                    x1, y1 = instance.customers[i - 1].x, instance.customers[i - 1].y
+                if j == 0:
+                    x2, y2 = instance.depot.x, instance.depot.y
+                else:
+                    x2, y2 = instance.customers[j - 1].x, instance.customers[j - 1].y
+                (line,) = ax.plot(
+                    [x1, x2], [y1, y2], color=GRAY_DARK,
+                    linewidth=lw, alpha=alpha, zorder=2,
+                )
+                artists.append(line)
+
+        iteration = (frame_idx + 1) * 10
+        ax.set_title(f"Pheromone Trails After Iteration {iteration}", fontsize=11)
+        return artists
+
+    anim = FuncAnimation(
+        fig, update, frames=len(all_tau), interval=1000 // fps, blit=False,
+    )
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    writer = FFMpegWriter(fps=fps, metadata={"title": "Pheromone Evolution"})
+    anim.save(str(output_path), writer=writer)
+    plt.close(fig)
+
+
+def plot_route_videos(
+    instance: Any,
+    solution: Any,
+    output_dir: str = "results",
+    fps: int = 4,
+) -> list[str]:
+    """Create one MP4 video per vehicle route, showing edge-by-edge construction.
+
+    Each video starts from an empty map and draws one route step by step,
+    with directional arrows and a title showing current edge progress.
+    Each video saves as route_vN.mp4 in the output directory.
+
+    Args:
+        instance: CVRPInstance with .depot and .customers.
+        solution: CVRPSolution with .routes.
+        output_dir: Directory for output videos.
+        fps: Frames per second.
+
+    Returns:
+        List of paths to generated video files.
     """
     from matplotlib.animation import FuncAnimation, FFMpegWriter
     from matplotlib.patches import FancyArrowPatch
 
     xs = [c.x for c in instance.customers]
     ys = [c.y for c in instance.customers]
-    route_styles = ["-", "--", "-.", (0, (3, 2, 1, 2)),
-                    (0, (1, 1)), (0, (5, 3)), "-", "--", "-."]
+    paths: list[str] = []
 
-    frames_data: list[tuple[int, float, float, float, float, str, float]] = []
     for ri, route in enumerate(solution.routes):
         if not route:
             continue
-        sty = route_styles[ri % len(route_styles)]
-        lw = 1.2 if ri < 6 else 0.7
+
+        route_edges: list[tuple[float, float, float, float, str]] = []
         prev_x, prev_y = instance.depot.x, instance.depot.y
-        for pos, node_idx in enumerate(route):
+        for node_idx in route:
             c = instance.customers[node_idx - 1]
-            direction = f"Vehicle {ri + 1}: depot" if pos == 0 else ""
-            if pos == 0:
-                direction = f"Vehicle {ri + 1}: depot to node {node_idx}"
-            else:
-                direction = f"Vehicle {ri + 1}: node {route[pos - 1]} to node {node_idx}"
-            for _ in range(4):
-                frames_data.append((ri, prev_x, prev_y, c.x, c.y, sty, lw))
+            route_edges.append((prev_x, prev_y, c.x, c.y, f"depot to node {node_idx}"
+                               if prev_x == instance.depot.x and prev_y == instance.depot.y
+                               else f"node {route[route.index(node_idx) - 1] if route.index(node_idx) > 0 else '?'} to node {node_idx}"))
             prev_x, prev_y = c.x, c.y
-        for _ in range(4):
-            frames_data.append((ri, prev_x, prev_y, instance.depot.x, instance.depot.y, ":", 0.6))
+        route_edges.append((prev_x, prev_y, instance.depot.x, instance.depot.y,
+                           f"node {route[-1]} to depot"))
 
-    if not frames_data:
-        return
+        frame_labels: list[str] = []
+        for ei in range(len(route_edges)):
+            for _ in range(5):
+                frame_labels.append(f"Vehicle {ri + 1}: edge {ei + 1}/{len(route_edges)} - {route_edges[ei][4]}")
 
-    for _ in range(fps * 6):
-        frames_data.append(frames_data[-1])
+        for _ in range(fps * 3):
+            frame_labels.append(f"Vehicle {ri + 1}: complete ({len(route)} stops, {len(route_edges)} edges)")
 
-    fig, ax = plt.subplots(figsize=(8, 7))
-    ax.set_aspect("equal")
-    drawn: set[tuple[int, int, int, int]] = set()
-
-    def update(frame_idx: int) -> list[Any]:
-        ax.clear()
+        fig, ax = plt.subplots(figsize=(8, 7))
         ax.set_aspect("equal")
-        ax.scatter(
-            xs, ys, s=14, marker="o", facecolor="white",
-            edgecolor=GRAY_DARK, linewidth=0.5, zorder=3,
+
+        def make_update(edges, labels):
+            drawn_edges: list[tuple[float, float, float, float]] = []
+
+            def update(frame_idx: int) -> list[Any]:
+                ax.clear()
+                ax.set_aspect("equal")
+                ax.scatter(xs, ys, s=16, marker="o", facecolor="white",
+                           edgecolor=GRAY_DARK, linewidth=0.5, zorder=3)
+                ax.scatter([instance.depot.x], [instance.depot.y], s=60,
+                           c=GRAY_DARK, marker="s", zorder=4)
+                ax.text(instance.depot.x, instance.depot.y + 1.5, "Depot",
+                        ha="center", fontsize=8, fontweight="bold")
+                ax.set_xlabel("X Coordinate")
+                ax.set_ylabel("Y Coordinate")
+
+                idx = min(frame_idx // 5, len(edges) - 1)
+                if idx >= len(drawn_edges):
+                    drawn_edges.clear()
+                    for e in range(idx + 1):
+                        if e < len(edges):
+                            drawn_edges.append(edges[e][:4])
+
+                artists: list[Any] = []
+                for sx, sy, dx, dy in drawn_edges:
+                    arrow = FancyArrowPatch(
+                        (sx, sy), (dx, dy), arrowstyle="-|>",
+                        mutation_scale=10, color=GRAY_DARK,
+                        linewidth=1.2, alpha=0.8, zorder=2,
+                    )
+                    ax.add_patch(arrow)
+                    artists.append(arrow)
+
+                ax.set_title(labels[min(frame_idx, len(labels) - 1)], fontsize=10)
+                ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+                return artists
+            return update
+
+        updater = make_update(route_edges, frame_labels)
+        anim = FuncAnimation(
+            fig, updater, frames=len(frame_labels),
+            interval=1000 // fps, blit=False,
         )
-        ax.scatter(
-            [instance.depot.x], [instance.depot.y],
-            s=50, c=GRAY_DARK, marker="s", zorder=4,
-        )
-        ax.text(
-            instance.depot.x, instance.depot.y + 1.5, "Depot",
-            ha="center", fontsize=7, fontweight="bold",
-        )
-        ax.set_xlabel("X Coordinate")
-        ax.set_ylabel("Y Coordinate")
-        ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+        out_path = str(Path(output_dir) / f"route_v{ri + 1}.mp4")
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        writer = FFMpegWriter(fps=fps, metadata={"title": f"ACO Vehicle {ri + 1} Route"})
+        anim.save(out_path, writer=writer)
+        plt.close(fig)
+        paths.append(out_path)
 
-        ri, sx, sy, dx, dy, sty, lw = frames_data[min(frame_idx, len(frames_data) - 1)]
-        edge_key = (int(sx * 1000), int(sy * 1000), int(dx * 1000), int(dy * 1000))
-        drawn.add(edge_key)
-
-        artists: list[Any] = []
-        for key in drawn:
-            _sx, _sy, _dx, _dy = key
-            _sx_f = _sx / 1000
-            _sy_f = _sy / 1000
-            _dx_f = _dx / 1000
-            _dy_f = _dy / 1000
-            arrow = FancyArrowPatch(
-                (_sx_f, _sy_f), (_dx_f, _dy_f),
-                arrowstyle="-|>", mutation_scale=10,
-                color=GRAY_DARK, linewidth=1.0, alpha=0.6,
-                linestyle=sty, zorder=2,
-            )
-            ax.add_patch(arrow)
-            artists.append(arrow)
-
-        title_parts = []
-        for r_idx, r in enumerate(solution.routes):
-            if r:
-                title_parts.append(f"V{r_idx + 1}: {len(r)} stops")
-        ax.set_title(" | ".join(title_parts), fontsize=9)
-
-        return artists
-
-    anim = FuncAnimation(
-        fig, update, frames=len(frames_data),
-        interval=1000 // fps, blit=False,
-    )
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    writer = FFMpegWriter(fps=fps, metadata={"title": "ACO Route Construction"})
-    anim.save(str(output_path), writer=writer)
-    plt.close(fig)
+    return paths
 
 
 def plot_cd_from_results(
