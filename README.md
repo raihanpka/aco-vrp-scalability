@@ -41,7 +41,16 @@ pkk-swarm-intelligence/
 |-- scripts/                     Utility scripts for data download and batch runs
 |-- docs/
 |   |-- METHODOLOGY.md           Step-by-step research methodology
-|   `-- ROADMAP.md               Development roadmap
+|   |-- ROADMAP.md               Development roadmap
+|   `-- MANUSCRIPT.md            Research paper draft
+|-- results/                     Organized research outputs
+|   |-- route_maps/              Per-vehicle + aggregate SVG route maps
+|   |-- route_videos/            Per-vehicle MP4 route construction videos
+|   |-- aggregated/              Scalability, heatmap, CD diagram
+|   |-- 3d/                      3D pheromone surface and scalability wireframe
+|   |-- anime/                   Pheromone evolution animation
+|   |-- data/                    CSV experiment data
+|   `-- report/                  Statistical report
 |-- pyproject.toml               Project metadata and dependencies
 |-- LICENSE                      MIT License
 |-- .gitignore
@@ -81,44 +90,30 @@ uv sync --group dev       # For development tools (pytest, mypy, ruff)
 # Step 1: Download Solomon benchmark instances
 uv run python scripts/download_solomon.py
 
-# Step 2: Run the full experiment matrix
+# Step 2: Run the full experiment matrix (360 ACO runs)
 uv run python scripts/run_experiments.py
 
-# Step 3: Generate statistical analysis and figures
-uv run python scripts/generate_analysis.py
-```
-
-Alternatively, import and use programmatically:
-
-```python
-from aco_vrp.experiment import ExperimentRunner
-from aco_vrp.analysis import StatisticalAnalyzer
-
-runner = ExperimentRunner()
-results = runner.run_full_matrix(seeds=30)
-
-analyzer = StatisticalAnalyzer(results)
-analyzer.friedman_test()
-analyzer.nemenyi_post_hoc()
+# Step 3: Generate all visualizations and organized outputs
+uv run python scripts/generate_outputs.py
 ```
 
 ### Expected Output
 
-After a full run, the `results/` directory contains:
+After a full run, the `results/` directory is organized into:
 
-| File | Description |
-| ---- | ----------- |
-| `results/summary.csv` | Aggregated metrics per configuration and problem size |
-| `results/raw_runs.csv` | Per-run metrics for all 30 seeds |
-| `results/scalability_plot.pdf` | Performance degradation curve with confidence bands |
-| `results/parameter_heatmap.pdf` | Alpha vs. Beta interaction at each problem size |
-| `results/critical_difference.pdf` | Nemenyi critical difference diagram |
-| `results/physics_animation.html` | Interactive pheromone concentration evolution |
-| `results/statistical_report.txt` | Full Friedman and Wilcoxon test output |
+| Folder | Contents |
+| ------ | -------- |
+| `route_maps/` | Per-vehicle + aggregate SVG route maps with directional arrows |
+| `route_videos/` | Per-vehicle MP4 edge-by-edge route construction videos |
+| `aggregated/` | Scalability plot, parameter heatmap, CD diagram (SVG) |
+| `3d/` | 3D pheromone surface, 3D scalability wireframe (SVG) |
+| `anime/` | Pheromone evolution animation (MP4) |
+| `data/` | Raw experiment CSV data |
+| `report/` | Statistical report with Friedman and Wilcoxon tests |
 
 ### Compute Requirements
 
-A full run (4 configurations x 3 problem sizes x 30 seeds = 360 ACO runs plus baseline evaluations) requires approximately 6 hours on a modern CPU. Memory usage is below 2 GB. No GPU is required.
+A full run (4 configurations x 3 problem sizes x 30 seeds = 360 ACO runs plus baseline evaluations) requires approximately 13 minutes on a modern CPU. Memory usage is below 2 GB. No GPU required.
 
 ## Development
 
