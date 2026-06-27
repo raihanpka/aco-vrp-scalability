@@ -44,10 +44,10 @@ plt.rcParams.update({
 })
 
 CONFIG_LABELS: dict[str, str] = {
-    "C1": "C1 (alpha=1.0, beta=2.0, rho=0.1)",
-    "C2": "C2 (alpha=1.0, beta=5.0, rho=0.1)",
-    "C3": "C3 (alpha=2.0, beta=2.0, rho=0.3)",
-    "C4": "C4 (alpha=2.0, beta=5.0, rho=0.3)",
+    "C1": "C1 (a=1.0, b=2.0, r=0.1)",
+    "C2": "C2 (a=1.0, b=5.0, r=0.1)",
+    "C3": "C3 (a=2.0, b=2.0, r=0.3)",
+    "C4": "C4 (a=2.0, b=5.0, r=0.3)",
 }
 
 LINE_STYLES: dict[str, str] = {
@@ -661,8 +661,9 @@ def plot_pheromone_animation(
 
         iteration = (frame_idx + 1) * 5
         shown = len(artists)
+        size_label = f"Size {len(instance.customers)}"
         ax.set_title(
-            f"Pheromone Trails at Iteration {iteration} ({shown} significant edges)",
+            f"{size_label}  Pheromone Trails at Iteration {iteration} ({shown} significant edges)",
             fontsize=11,
         )
         return artists
@@ -720,12 +721,17 @@ def plot_route_videos(
                            f"node {route[-1]} to depot"))
 
         frame_labels: list[str] = []
+        size_label = f"Size {len(instance.customers)}"
         for ei in range(len(route_edges)):
             for _ in range(5):
-                frame_labels.append(f"Vehicle {ri + 1}: edge {ei + 1}/{len(route_edges)} - {route_edges[ei][4]}")
+                frame_labels.append(
+                    f"{size_label}  Vehicle {ri + 1}: edge {ei + 1}/{len(route_edges)}"
+                )
 
         for _ in range(fps * 3):
-            frame_labels.append(f"Vehicle {ri + 1}: complete ({len(route)} stops, {len(route_edges)} edges)")
+            frame_labels.append(
+                f"{size_label}  Vehicle {ri + 1}: complete ({len(route)} stops)"
+            )
 
         fig, ax = plt.subplots(figsize=(8, 7))
         ax.set_aspect("equal")
