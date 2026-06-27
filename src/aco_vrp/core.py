@@ -70,6 +70,7 @@ class ACO:
         self.config = config
         self.rng: random.Random | None = None
         self.convergence_history: list[float] = []
+        self.route_history: list[list[list[int]]] = []
 
     def solve(self, instance: CVRPInstance, seed: int = 0) -> CVRPSolution:
         """
@@ -101,6 +102,7 @@ class ACO:
         global_best_sol = CVRPSolution()
         global_best_dist = float("inf")
         self.convergence_history = []
+        self.route_history = []
 
         for _ in range(self.config.max_iterations):
             iteration_solutions: list[CVRPSolution] = []
@@ -160,6 +162,7 @@ class ACO:
                 )
 
             self.convergence_history.append(global_best_dist)
+            self.route_history.append([r[:] for r in global_best_sol.routes])
 
             # Pheromone evaporation
             tau *= 1.0 - self.config.rho

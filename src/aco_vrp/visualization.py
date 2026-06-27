@@ -375,10 +375,9 @@ def plot_critical_difference(
 
 
 def _save(fig: matplotlib.figure.Figure, output_path: str) -> None:
-    """Save figure as both PDF and SVG to the output directory."""
+    """Save figure as SVG to the output directory."""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(str(path), format="pdf")
     svg_path = path.with_suffix(".svg")
     fig.savefig(str(svg_path), format="svg")
 
@@ -468,3 +467,154 @@ def plot_route_map(
     fig.tight_layout()
     _save(fig, output_path)
     plt.close(fig)
+
+
+def plot_route_animation(
+    instance: Any,
+    route_history: list[list[list[int]]],
+    output_path: str = "results/route_evolution.mp4",
+    fps: int = 10,
+) -> None:
+    """Create an MP4 video showing ACO route evolution over iterations.
+
+    Each frame displays customer locations, the depot, and the best routes
+    found up to that iteration. The title shows the iteration number.
+
+    Requires ffmpeg installed for MP4 output.
+
+    Args:
+        instance: CVRPInstance providing .depot and .customers.
+        route_history: List of routes per iteration from ACO.route_history.
+        output_path: Path for the saved video.
+        fps: Frames per second.
+    """
+    from matplotlib.animation import FuncAnimation, FFMpegWriter
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.set_aspect("equal")
+    ax.set_xlabel("X Coordinate")
+    ax.set_ylabel("Y Coordinate")
+    ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+
+    xs = [c.x for c in instance.customers]
+    ys = [c.y for c in instance.customers]
+    route_styles = [
+        "-", "--", "-.", (0, (3, 2, 1, 2)),
+        (0, (1, 1)), (0, (5, 3)), "-", "--",
+    ]
+
+    def update(frame: int) -> list[Any]:
+        ax.clear()
+        ax.set_aspect("equal")
+        ax.scatter(
+            xs, ys, s=14, marker="o", facecolor="white",
+            edgecolor=GRAY_DARK, linewidth=0.5, zorder=3,
+        )
+        ax.scatter(
+            [instance.depot.x], [instance.depot.y],
+            s=50, c=GRAY_DARK, marker="s", zorder=4,
+        )
+        ax.text(
+            instance.depot.x, instance.depot.y + 1.5, "Depot",
+            ha="center", fontsize=7, fontweight="bold",
+        )
+        ax.set_xlabel("X Coordinate")
+        ax.set_ylabel("Y Coordinate")
+        ax.grid(
+            True, linestyle=":", color=GRAY_LIGHT,
+            linewidth=0.3, alpha=0.5,
+        )
+
+        iteration_sol = route_history[min(frame, len(route_history) - 1)]
+        artists: list[Any] = []
+
+        for ri, route in enumerate(iteration_sol):
+            if not route:
+                continue
+            sty = route_styles[ri % len(route_styles)]
+            artists += ax.plot(
+                [instance.depot.x, instance.customers[route[0] - 1].x],
+                [instance.depot.y, instance.customers[route[0] - 1].y],
+                color=GRAY_DARK, linestyle=":", linewidth=0.4, zorder=1,
+            )
+            px = [instance.customers[n - 1].x for n in route]
+            py = [instance.customers[n - 1].y for n in route]
+            artists += ax.plot(
+                px, py, color=GRAY_DARK,
+                linestyle=sty, linewidth=1.0, zorder=2,
+            )
+            artists += ax.plot(
+                [instance.customers[route[-1] - 1].x, instance.depot.x],
+                [instance.customers[route[-1] - 1].y, instance.depot.y],
+                color=GRAY_DARK, linestyle=":", linewidth=0.4, zorder=1,
+            )
+
+        ax.set_title(f"Iteration {frame + 1} / {len(route_history)}")
+        return artists
+
+    step = max(1, len(route_history) // 200)
+    frames = list(range(0, len(route_history), step))
+    if not frames or frames[-1] != len(route_history) - 1:
+        frames.append(len(route_history) - 1)
+
+    anim = FuncAnimation(
+        fig, update, frames=frames, interval=1000 // fps, blit=False,
+    )
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    writer = FFMpegWriter(fps=fps, metadata={"title": "ACO Route Evolution"})
+    anim.save(str(output_path), writer=writer)
+    plt.close(fig)
+
+
+def plot_cd_from_results(
+    results: dict[tuple[str, int, int], dict[str, Any]],
+    size: int = 100,
+    metric: str = "total_distance",
+    output_path: str = "results/critical_difference.pdf",
+) -> None:
+    """Compute Nemenyi CD diagram from experiment results using mean ranks.
+
+    Args:
+        results: ACO metrics keyed by (config_id, size, seed).
+        size: Problem size.
+        metric: Metric name.
+        output_path: Output figure path.
+    """
+    config_ids = ["C1", "C2", "C3", "C4"]
+    cols: list[list[float]] = []
+    for cid in config_ids:
+        vals = [
+            float(results[(cid, size, seed)][metric])
+            for seed in range(30)
+            if (cid, size, seed) in results and metric in results[(cid, size, seed)]
+        ]
+        cols.append(vals)
+
+    if len(cols) < 2 or any(len(c) < 2 for c in cols):
+        plot_critical_difference(output_path=output_path)
+        return
+
+    from scipy.stats import friedmanchisquare
+
+    try:
+        friedmanchisquare(*cols)
+    except ValueError:
+        plot_critical_difference(output_path=output_path)
+        return
+
+    mat = np.array(cols).T
+    ranks = np.zeros_like(mat, dtype=float)
+    for row_idx in range(mat.shape[0]):
+        row_order = np.argsort(mat[row_idx])
+        for rank_pos, col_idx in enumerate(row_order):
+            ranks[row_idx, col_idx] = float(rank_pos + 1)
+
+    mean_ranks = np.mean(ranks, axis=0)
+    cd_data = {cid: float(mean_ranks[i]) for i, cid in enumerate(config_ids)}
+
+    k = len(config_ids)
+    n = mat.shape[0]
+    q_alpha = 2.569  # for k=4, alpha=0.05
+    cd_threshold = q_alpha * np.sqrt(k * (k + 1) / (6.0 * n))
+
+    plot_critical_difference(cd_data, cd_threshold, output_path)
