@@ -429,11 +429,23 @@ def plot_route_map(
     ax.text(instance.depot.x, instance.depot.y + 1.5, "Depot",
             ha="center", fontsize=7, fontweight="bold")
 
-    # Draw routes
+    legend_elements: list[Any] = []
+    from matplotlib.lines import Line2D
+
+    legend_elements.append(
+        Line2D([0], [0], marker="s", color=GRAY_DARK, markerfacecolor=GRAY_DARK,
+               markersize=8, linestyle="none", label="Depot")
+    )
+    legend_elements.append(
+        Line2D([0], [0], marker="o", color=GRAY_DARK, markerfacecolor="white",
+               markersize=7, linestyle="none", label="Customer")
+    )
+
     for ri, route in enumerate(solution.routes):
         if not route:
             continue
         style = route_styles[ri % len(route_styles)]
+        label = f"Vehicle {ri + 1}" if ri < 8 else None
 
         # Depot to first customer (dotted)
         ax.plot(
@@ -454,6 +466,20 @@ def plot_route_map(
             [instance.customers[route[-1] - 1].y, instance.depot.y],
             color=GRAY_DARK, linestyle=":", linewidth=0.5, zorder=1,
         )
+
+        if label:
+            legend_elements.append(
+                Line2D([0], [0], color=GRAY_DARK, linestyle=style["linestyle"],
+                       linewidth=style["linewidth"], label=label)
+            )
+
+    legend_elements.append(
+        Line2D([0], [0], color=GRAY_DARK, linestyle=":", linewidth=0.5,
+               label="Depot connection")
+    )
+
+    ax.legend(handles=legend_elements, frameon=False, loc="upper left",
+              fontsize=7, ncol=2)
 
     # Annotate a few key customers
     for c in instance.customers[:10]:
