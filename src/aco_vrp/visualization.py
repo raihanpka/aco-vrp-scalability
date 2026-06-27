@@ -487,6 +487,98 @@ def plot_route_map(
     plt.close(fig)
 
 
+def plot_vehicle_route_map(
+    instance: Any,
+    route: list[int],
+    vehicle_num: int,
+    title: str = "Vehicle Route",
+    output_path: str = "results/route_maps/vehicle_route.svg",
+) -> None:
+    """Plot a SINGLE vehicle route on a 2-D coordinate plane with arrows.
+
+    Only the customers in this route are highlighted. Others are dimmed.
+    Directional arrows show travel order. Visit order numbers appear
+    beside each node. Designed for per-vehicle inspection.
+
+    Args:
+        instance: CVRPInstance.
+        route: List of node indices (1..N) for this vehicle.
+        vehicle_num: Vehicle number for labeling.
+        title: Plot title.
+        output_path: SVG output path.
+    """
+    from matplotlib.patches import FancyArrowPatch
+    from matplotlib.lines import Line2D
+
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.set_aspect("equal")
+
+    all_xs = [c.x for c in instance.customers]
+    all_ys = [c.y for c in instance.customers]
+    route_set = set(route)
+
+    other_xs = [c.x for i, c in enumerate(instance.customers) if (i + 1) not in route_set]
+    other_ys = [c.y for i, c in enumerate(instance.customers) if (i + 1) not in route_set]
+    ax.scatter(other_xs, other_ys, s=10, marker="o", facecolor="white",
+               edgecolor=GRAY_LIGHT, linewidth=0.3, zorder=2)
+
+    # Highlight route customers
+    route_xs = [instance.customers[n - 1].x for n in route]
+    route_ys = [instance.customers[n - 1].y for n in route]
+    ax.scatter(route_xs, route_ys, s=30, marker="o", facecolor="white",
+               edgecolor=GRAY_DARK, linewidth=1.0, zorder=4)
+
+    ax.scatter([instance.depot.x], [instance.depot.y], s=80, marker="s",
+               c=GRAY_DARK, zorder=5)
+    ax.text(instance.depot.x, instance.depot.y + 2.0, "Depot",
+            ha="center", fontsize=9, fontweight="bold")
+
+    # Draw edges with arrows
+    prev_x, prev_y = instance.depot.x, instance.depot.y
+    for pos, node_idx in enumerate(route):
+        c = instance.customers[node_idx - 1]
+        arrow = FancyArrowPatch(
+            (prev_x, prev_y), (c.x, c.y),
+            arrowstyle="-|>", mutation_scale=14,
+            color=GRAY_DARK, linewidth=1.4, alpha=0.9, zorder=3,
+        )
+        ax.add_patch(arrow)
+        offset_x = 1.0 if pos % 2 == 0 else -1.0
+        offset_y = 1.0 if pos < len(route) // 2 else -1.0
+        ax.text(c.x + offset_x, c.y + offset_y, str(pos + 1),
+                fontsize=6.5, ha="center", va="center", color=GRAY_DARK,
+                fontweight="bold", zorder=6)
+        prev_x, prev_y = c.x, c.y
+
+    return_arrow = FancyArrowPatch(
+        (prev_x, prev_y), (instance.depot.x, instance.depot.y),
+        arrowstyle="-|>", mutation_scale=14,
+        color=GRAY_DARK, linewidth=0.8, alpha=0.6, linestyle=":", zorder=3,
+    )
+    ax.add_patch(return_arrow)
+
+    legend_handles = [
+        Line2D([0], [0], marker="s", color=GRAY_DARK, markerfacecolor=GRAY_DARK,
+               markersize=10, linestyle="none", label="Depot"),
+        Line2D([0], [0], marker="o", color=GRAY_DARK, markerfacecolor="white",
+               markeredgecolor=GRAY_DARK, markersize=9, linestyle="none",
+               label=f"Route customer ({len(route)} stops)"),
+        Line2D([0], [0], marker="o", color=GRAY_LIGHT, markerfacecolor="white",
+               markeredgecolor=GRAY_LIGHT, markersize=6, linestyle="none",
+               label="Other customers"),
+    ]
+    ax.legend(handles=legend_handles, frameon=False, loc="lower center",
+              bbox_to_anchor=(0.5, -0.15), fontsize=8, ncol=3)
+
+    ax.set_xlabel("X Coordinate")
+    ax.set_ylabel("Y Coordinate")
+    ax.set_title(f"{title} (Vehicle {vehicle_num})")
+    ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
+    fig.tight_layout()
+    _save(fig, output_path)
+    plt.close(fig)
+
+
 def plot_pheromone_animation(
     instance: Any,
     pheromone_snapshots: list[Any],
@@ -511,7 +603,8 @@ def plot_pheromone_animation(
     all_tau = pheromone_snapshots
     if not all_tau:
         return
-    max_tau = float(max(np.max(t) for t in all_tau))
+    first_tau = all_tau[0]
+    n = first_tau.shape[0]
 
     xs = [c.x for c in instance.customers]
     ys = [c.y for c in instance.customers]
@@ -539,15 +632,19 @@ def plot_pheromone_animation(
         ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.3, alpha=0.5)
 
         tau = all_tau[min(frame_idx, len(all_tau) - 1)]
+        mean_val = float(np.mean(tau))
+        max_val = float(np.max(tau))
+        threshold = mean_val + (max_val - mean_val) * 0.5
+
         artists: list[Any] = []
 
         for i in range(n):
             for j in range(i + 1, n):
                 val = float(tau[i, j])
-                if val < max_tau * 0.01:
+                if val < threshold:
                     continue
-                alpha = min(val / max_tau, 1.0) * 0.8
-                lw = max(0.2, (val / max_tau) * 3.0)
+                alpha = min((val - threshold) / (max_val - threshold + 1e-9), 1.0) * 0.85
+                lw = max(0.3, ((val - threshold) / (max_val - threshold + 1e-9)) * 3.0)
                 if i == 0:
                     x1, y1 = instance.depot.x, instance.depot.y
                 else:
@@ -562,8 +659,12 @@ def plot_pheromone_animation(
                 )
                 artists.append(line)
 
-        iteration = (frame_idx + 1) * 10
-        ax.set_title(f"Pheromone Trails After Iteration {iteration}", fontsize=11)
+        iteration = (frame_idx + 1) * 5
+        shown = len(artists)
+        ax.set_title(
+            f"Pheromone Trails at Iteration {iteration} ({shown} significant edges)",
+            fontsize=11,
+        )
         return artists
 
     anim = FuncAnimation(
