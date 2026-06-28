@@ -44,10 +44,10 @@ plt.rcParams.update({
 })
 
 CONFIG_LABELS: dict[str, str] = {
-    "C1": "C1 (a=1.0, b=2.0, r=0.1)",
-    "C2": "C2 (a=1.0, b=5.0, r=0.1)",
-    "C3": "C3 (a=2.0, b=2.0, r=0.3)",
-    "C4": "C4 (a=2.0, b=5.0, r=0.3)",
+    "C1": "C1",
+    "C2": "C2",
+    "C3": "C3",
+    "C4": "C4",
 }
 
 LINE_STYLES: dict[str, str] = {
@@ -190,7 +190,7 @@ def plot_scalability(
                     label=label,
                 )
 
-    ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, -0.18), ncol=4, fontsize=8)
+    ax.legend(frameon=False, loc="upper left", fontsize=9)
     ax.grid(True, linestyle=":", color=GRAY_LIGHT, linewidth=0.5, alpha=0.7)
     fig.tight_layout()
     _save(fig, output_path)

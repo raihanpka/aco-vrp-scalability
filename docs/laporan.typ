@@ -61,7 +61,7 @@ Despite this extensive body of work, an important methodological gap remains. Mo
 
 This limitation has practical implications. Logistics operators frequently face routing problems of varying scales, ranging from small local delivery networks to large distribution systems. A parameter configuration that performs well on a small instance may not remain effective as the number of customers increases. Without a systematic scalability analysis, practitioners have limited guidance regarding which ACO configurations can maintain performance across different problem sizes.
 
-Therefore, this study investigates the following research question: _How does the performance of Ant Colony Optimization scale as the size of a CVRP instance increases, and which parameter configuration exhibits the best scalability characteristics?_ To answer this question, we conduct a controlled factorial experiment using four ACO parameter configurations on three subsets of the Solomon RC101 benchmark consisting of 25, 50, and 100 customers. Each experimental condition is executed across thirty independent runs to evaluate solution quality, convergence speed, and reliability. Statistical significance is assessed using the Friedman test and post-hoc Wilcoxon signed-rank tests following the recommendations of #cite(<derrac2011guide>). The findings provide empirical insights into the scalability behavior of ACO and identify parameter settings that remain effective as problem complexity increases.
+Therefore, this study investigates the following research question: _How does the performance of Ant Colony Optimization scale as the size of a CVRP instance increases, and which parameter configuration exhibits the best scalability characteristics?_ To answer this question, we conduct a controlled factorial experiment using four ACO parameter configurations on three subsets of the Solomon RC101 benchmark consisting of 25, 50, and 100 customers. Each experimental condition is executed across three independent runs to evaluate solution quality, convergence speed, and reliability. Statistical significance is assessed using the Friedman test and post-hoc Wilcoxon signed-rank tests following the recommendations of #cite(<derrac2011guide>). The findings provide empirical insights into the scalability behavior of ACO and identify parameter settings that remain effective as problem complexity increases.
 
 = Methods <sec:methods>
 The experimental pipeline consists of seven stages, from data preparation 
@@ -106,9 +106,7 @@ $
 
 where $L_"best"$ is the total distance of the best solution found in the current iteration and $rho in (0, 1]$ is the evaporation rate. A 2-opt local search is applied to the iteration-best solution prior to pheromone update to improve route quality within each iteration.
 
-== Experimental Design
-
-=== Parameter Configurations
+== Parameter Configurations
 
 Four ACO parameter configurations are evaluated, as shown in @tbl-configs. Configuration C1 adopts the standard parameter values commonly recommended in the ACO literature #cite(<dorigo2004aco>) and serves as the reference baseline. Configuration C2 isolates the effect of increasing heuristic weight $beta$. Configuration C3 isolates the effect of increasing pheromone weight $alpha$ alongside a higher evaporation rate $rho$. Configuration C4 combines the elevated values of both $alpha$ and $beta$ with the higher evaporation rate to test their joint effect. All configurations use 10 ants and run for 100 iterations.
 
@@ -131,9 +129,9 @@ Four ACO parameter configurations are evaluated, as shown in @tbl-configs. Confi
 ) <tbl-configs>
 
 
-=== Experimental Matrix
+== Experimental Matrix
 
-The full factorial design crosses 4 configurations with 3 problem sizes and 30 independent random seeds, yielding $4 times 3 times 30 = 360$ ACO runs in total. Each run is initialized with a distinct integer seed in the range $[0, 29]$ to account for the stochastic nature of ant-based solution construction while ensuring full reproducibility. The two baseline heuristics (NN and CWS) are deterministic and are therefore evaluated once per problem size, producing 6 additional reference data points.
+The full factorial design crosses 4 configurations with 3 problem sizes and 3 independent random seeds, yielding $4 times 3 times 3 = 36$ ACO runs in total. Each run is initialized with a distinct integer seed in the range $[0, 2]$ to account for the stochastic nature of ant-based solution construction while ensuring full reproducibility. The two baseline heuristics (NN and CWS) are deterministic and are therefore evaluated once per problem size, producing 6 additional reference data points.
 
 For each ACO run, the following metrics are recorded:
 - _Total route distance_: the primary performance metric, defined as the sum of Euclidean distances across all routes including depot-to-first and last-to-depot legs.
@@ -142,122 +140,79 @@ For each ACO run, the following metrics are recorded:
 - _Wall-clock time_: elapsed time in seconds for the complete ACO run.
 - _Feasibility_: whether the solution satisfies all capacity constraints and visits every customer exactly once.
 
-=== Statistical Analysis
+== Statistical Analysis
 
-Statistical comparisons follow the nonparametric testing framework recommended by #cite(<derrac2011guide>) for evaluating swarm intelligence algorithms. At each problem size, the _Friedman test_ is applied as an omnibus test across all four ACO configurations, with the null hypothesis that all configurations are drawn from the same performance distribution. When the Friedman test rejects the null at $alpha = 0.05$, pairwise comparisons are carried out using the _Wilcoxon signed-rank test_. The _Holm step-down correction_ is applied to control the family-wise error rate under multiple comparisons. All tests operate on the 30-run sample of total distances per configuration per problem size.
+Statistical comparisons follow the nonparametric testing framework recommended by #cite(<derrac2011guide>) for evaluating swarm intelligence algorithms. At each problem size, the _Friedman test_ is applied as an omnibus test across all four ACO configurations, with the null hypothesis that all configurations are drawn from the same performance distribution. When the Friedman test rejects the null at $alpha = 0.05$, pairwise comparisons are carried out using the _Wilcoxon signed-rank test_. The _Holm step-down correction_ is applied to control the family-wise error rate under multiple comparisons. All tests operate on the 3-run sample of total distances per configuration per problem size.
 
-= Result <sec:result>
+
+= Results <sec:results>
 
 == Baseline Heuristics
-@tbl-baseline presents the deterministic results of the Nearest Neighbor (NN) and Clarke-Wright Savings (CWS) heuristics across the three problem sizes. CWS consistently outperforms NN, reducing total distance by 26.1% at 25 customers, 27.6% at 50 customers, and 17.9% at 100 customers. The CWS solution uses the same number of vehicles as NN at every problem size, indicating that the savings-based merging does not inflate the fleet requirement despite producing shorter routes.
+
+The Clarke-Wright Savings heuristic outperformed Nearest Neighbor at every problem size, as summarized in @tbl-baselines. CWS achieved total distances of 231.07, 373.02, and 562.11 for $N = 25$, $N = 50$, and $N = 100$, respectively, compared to 312.85, 514.95, and 684.67 for NN — reductions of 26.1%, 27.6%, and 17.9%. Both heuristics required 3, 5, and 8 vehicles at the respective sizes, yielding identical fleet utilization. These values establish fixed reference points for assessing whether ACO metaheuristic search recovers competitive routing quality.
 
 #figure(
-  caption: [Baseline heuristic results on RC101 subsets.],
-  placement: top,
+  caption: [Baseline heuristic total distance by problem size.],
+  placement: none,
   table(
-    columns: (5em, 8em, 6em, 8em, 6em),
-    align: (left, right, right, right, right),
+    columns: (5em, 5em, 5em, 5em),
+    align: (left, right, right, right),
     inset: (x: 8pt, y: 4pt),
     stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
     fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0 { rgb("#efefef") },
-
-    table.header[Size][NN Dist.][NN Veh.][CWS Dist.][CWS Veh.],
-    [25], [312.85], [3], [231.07], [3],
-    [50], [514.95], [5], [373.02], [5],
-    [100], [684.67], [8], [562.11], [8],
+    table.header[Heuristic][$N = 25$][$N = 50$][$N = 100$],
+    [NN],  [312.85], [514.95], [684.67],
+    [CWS], [231.07], [373.02], [562.11],
   )
-) <tbl-baseline>
+) <tbl-baselines>
 
-== ACO Performance
+== ACO Solution Quality
+
+All 36 ACO runs produced feasible solutions satisfying capacity constraints and full customer coverage. Mean total distances and standard deviations across the three seeds per cell are reported in @tbl-aco-results, with the scalability trend illustrated in @fig:scalability.
+
+At $N = 25$, performance differences among configurations were narrow, with means ranging from 228.7 (C3) to 263.5 (C2). At $N = 50$, the range compressed further: 399.9 (C4) to 405.0 (C3). At $N = 100$, the spread widened: C3 recorded the lowest mean of 593.9 (SD = 22.7) while C1 recorded the highest at 653.9 (SD = 13.6). Across all sizes, C3 ($alpha = 2$, $beta = 2$, $rho = 0.3$) and C4 ($alpha = 2$, $beta = 5$, $rho = 0.3$) — both using the higher evaporation rate — tended to produce shorter routes at the largest instance. All configurations used 3, 5, and 8 vehicles at $N = 25$, $N = 50$, and $N = 100$ respectively, matching the fleet utilization of both baseline heuristics.
+
 #figure(
-  caption: [ACO results by configuration and problem size. Mean total distance with standard deviation in parentheses ($n = 3$). All solutions are feasible and use the optimal number of vehicles (3 at size 25, 5 at size 50, 8 at size 100).],
-  placement: top,
+  caption: [ACO mean total distance ($±$ SD) across configurations and problem sizes ($n = 3$ seeds per cell).],
+  placement: none,
   table(
-    columns: (5em, 10em, 10em, 10em),
-    align: (left, center, center, center),
+    columns: (4em, 7em, 7em, 7em),
+    align: (left, right, right, right),
     inset: (x: 8pt, y: 4pt),
     stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
     fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0 { rgb("#efefef") },
-
-    table.header[Config][Size 25][Size 50][Size 100],
-    [C1], [$233.5 space plus.minus 6.1$], [$404.0 space plus.minus 6.1$], [$653.9 space plus.minus 13.6$],
-    [C2], [$263.5 space plus.minus 1.4$], [$403.5 space plus.minus 11.8$], [$619.2 space plus.minus 12.8$],
-    [C3], [$228.7 space plus.minus 2.0$], [$405.0 space plus.minus 18.2$], [$593.9 space plus.minus 22.7$],
-    [C4], [$235.5 space plus.minus 4.4$], [$399.9 space plus.minus 9.5$], [$618.7 space plus.minus 9.8$],
-  ),
+    table.header[Config][$N = 25$][$N = 50$][$N = 100$],
+    [C1], [$233.5 ± 6.1$],  [$404.0 ± 6.1$],  [$653.9 ± 13.6$],
+    [C2], [$263.5 ± 1.4$],  [$403.5 ± 11.8$], [$619.2 ± 12.8$],
+    [C3], [$228.7 ± 2.0$],  [$405.0 ± 18.2$], [$593.9 ± 22.7$],
+    [C4], [$235.5 ± 4.4$],  [$399.9 ± 9.5$],  [$618.7 ± 9.8$],
+  )
 ) <tbl-aco-results>
 
-@tbl-aco-results summarizes the mean total distance and standard deviation for each ACO configuration across $n = 3$ independent runs. All solutions satisfied capacity constraints and visited every customer exactly once. The number of vehicles produced by ACO matched the CWS baseline at every problem size, confirming that all configurations discovered solutions with the minimum feasible fleet count.
-
-At 25 customers, configuration C3 ($alpha = 2.0$, $beta = 2.0$, $rho = 0.3$) achieves the lowest mean distance of 228.71, surpassing the CWS baseline (231.07) by 1.0%. Configuration C2 ($alpha = 1.0$, $beta = 5.0$) performs substantially worse with a mean distance of 263.50, trailing CWS by 14.0%. Configuration C1 ($alpha = 1.0$, $beta = 2.0$, $rho = 0.1$) yields a mean of 233.47, and C4 ($alpha = 2.0$, $beta = 5.0$, $rho = 0.3$) reaches 235.54.
-
-At 50 customers, the performance differences narrow. Configuration C4 achieves the lowest mean distance (399.94), followed closely by C1 (403.98), C2 (403.49), and C3 (404.97). The difference between the best ACO configuration and CWS is 7.2%.
-
-At 100 customers, C3 emerges as the strongest performer with a mean distance of 593.90, representing a 5.7% gap relative to CWS. C1 performs worst at 653.94 (16.3% gap), indicating substantial degradation of the standard parameter configuration at larger problem sizes. C2 (619.23) and C4 (618.73) occupy intermediate positions.
-
-== Statistical Analysis
-Statistical comparisons follow the nonparametric testing framework recommended by #cite(<derrac2011guide>). At each problem size, the Friedman test is applied as an test across all four configurations, followed by pairwise Wilcoxon signed-rank tests when the test rejects the null hypothesis at $alpha = 0.05$.
-
-At size 25, the Friedman test yields $chi^2 = 7.00$ with $p = 0.072$, approaching but not reaching statistical significance. The near-significance reflects the consistent rank ordering across seeds, where C3 consistently ranks best and C2 consistently ranks worst. With only $n = 3$ blocks, the minimum attainable p-value for a four-group Friedman test is $p = 0.072$, indicating that the test is inherently underpowered at this sample size.
-
-At size 50, the Friedman test is clearly non-significant ($chi^2 = 2.20$, $p = 0.532$). The four configurations produce overlapping performance distributions, and no configuration dominates across seeds.
-
-At size 100, the Friedman test again approaches significance but still not reaching the statistical significance ($chi^2 = 7.00$, $p = 0.072$), reflecting a consistent rank ordering where C3 ranks best and C1 ranks worst in all three seeds. While statistical significance cannot be claimed at the $alpha = 0.05$ threshold, the directional trend is unambiguous: configurations with higher pheromone weight ($alpha = 2.0$) consistently outperform the standard configuration ($alpha = 1.0$) at the largest problem size.
-
-== Scalability Trends
-
-== Convergence Behavior
-
-=== Wall-Clock Time
-
-= Discussion
-
-= Conclusion
-
-/*
-
-$ a + b = gamma $ <eq:gamma>
-
-#lorem(80)
-
 #figure(
-  placement: none,
-  circle(radius: 15pt),
-  caption: [A circle representing the Sun.]
-) <fig:sun>
-
-In @fig:sun you can see a common representation of the Sun, which is a star that is located at the center of the solar system.
-
-#lorem(120)
-
-#figure(
-  caption: [The Planets of the Solar System and Their Average Distance from the Sun],
+  image("figures/scalability_plot.svg", width: 88%),
+  caption: [Mean total distance per configuration across problem sizes.],
   placement: top,
-  table(
-    // Table styling is not mandated by the IEEE. Feel free to adjust these
-    // settings and potentially move them into a set rule.
-    columns: (6em, auto),
-    align: (left, right),
-    inset: (x: 8pt, y: 4pt),
-    stroke: (x, y) => if y <= 1 { (top: 0.5pt) },
-    fill: (x, y) => if y > 0 and calc.rem(y, 2) == 0  { rgb("#efefef") },
+) <fig:scalability>
 
-    table.header[Planet][Distance (million km)],
-    [Mercury], [57.9],
-    [Venus], [108.2],
-    [Earth], [149.6],
-    [Mars], [227.9],
-    [Jupiter], [778.6],
-    [Saturn], [1,433.5],
-    [Uranus], [2,872.5],
-    [Neptune], [4,495.1],
-  )
-) <tab:planets>
+== Statistical Comparison
 
-In @tab:planets, you see the planets of the solar system and their average distance from the Sun.
-The distances were calculated with @eq:gamma that we presented in @sec:methods.
+The Friedman omnibus test revealed no statistically significant differences among the four ACO configurations at any problem size: $N = 25$ ($chi^2(3) = 7.00$, $p = 0.072$), $N = 50$ ($chi^2(3) = 2.20$, $p = 0.532$), and $N = 100$ ($chi^2(3) = 7.00$, $p = 0.072$). Since no omnibus test reached the significance threshold of $alpha = 0.05$, pairwise post-hoc comparisons were not performed. The parameter sensitivity across configurations is visualized in @fig:heatmap.
 
-#lorem(240)
+#figure(
+  image("figures/parameter_heatmap.svg", width: 88%),
+  caption: [Mean total distance heatmap across ACO parameter configurations and problem sizes.],
+  placement: top,
+) <fig:heatmap>
 
-#lorem(240)
-*/
+== Scalability Analysis
+
+Total route distance grew monotonically with problem size across all configurations (@fig:convergence). In absolute terms, C3 exhibited the smallest growth from $N = 25$ to $N = 100$ (593.9 $-$ 228.7 $=$ 365.2 distance units), while C1 showed the largest (653.9 $-$ 233.5 $=$ 420.4 units). By comparison, CWS grew by 331.0 units over the same range, indicating that all ACO configurations incurred greater absolute distance growth than the constructive baseline.
+
+Convergence behavior also varied with scale. At $N = 100$, C1 required a mean of 78.7 iterations to reach within 5% of the final best solution — nearly double the 40.7 iterations it required at $N = 50$. In contrast, C3 and C4 maintained faster convergence at $N = 100$, reaching the 5% threshold at mean iterations 31.7 and 14.3 respectively, indicating more efficient search under the higher evaporation rate $rho = 0.3$. Wall-clock time scaled from approximately 0.30 s at $N = 25$ to 3.43 s at $N = 100$, consistent across all configurations.
+
+#figure(
+  image("figures/convergence_curves.svg", width: 88%),
+  caption: [Convergence curves showing mean best distance per iteration across configurations and problem sizes.],
+  placement: top,
+) <fig:convergence>
