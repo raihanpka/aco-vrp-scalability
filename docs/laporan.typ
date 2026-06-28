@@ -70,7 +70,6 @@ through statistical analysis to final output, as illustrated in @fig:pipeline.
 #figure(
   image("figures/pipeline.png", width: 70%),
   caption: [Overview of the experimental pipeline from data input to output.],
-  placement: top,
 ) <fig:pipeline>
 
 == Problem Formulation
@@ -82,8 +81,15 @@ All experiments use the Solomon RC101 benchmark instance #cite(<solomon1987Algor
 == Algorithms
 Three routing algorithms are evaluated. Two classical constructive heuristics serve as deterministic baselines, and an ACO metaheuristic constitutes the primary subject of study:
 1. _Nearest Neighbor_ (NN). Starting from the depot, the algorithm greedily appends the nearest unvisited customer whose demand fits within the remaining vehicle capacity. When no feasible customer remains, the current vehicle returns to the depot and a new vehicle is dispatched. This process repeats until all customers are served.
-2. _Clarke-Wright Savings_ (CWS). The algorithm initializes one route per customer and computes a savings value $s(i,j) = d(0,i) + d(0,j) - d(i,j)$ for each customer pair #cite(<clarke1964savings>), reflecting the distance saved by combining two routes into one. Pairs are sorted in descending order of savings, and routes are merged iteratively, subject to capacity feasibility, until no further merges are possible.
-3. _Ant Colony Optimization_ (ACO). The implementation follows the canonical ACO framework of #cite(<dorigo2004aco>). A pheromone matrix $tau$ of size $(N+1) times (N+1)$ is initialized uniformly. At each iteration, a colony of $m$ ants constructs solutions independently. Each ant starts at the depot and selects the next customer $j$ from the set of unvisited, capacity-feasible customers according to the proportional transition rule:
+2. _Clarke-Wright Savings_ (CWS). The algorithm is initialized by assigning each customer its own dedicated route directly to and from the depot, yielding $N$ single-customer routes. For every pair of customers $(i, j)$, a savings value is then computed as:
+
+$
+s(i, j) = d(0, i) + d(0, j) - d(i, j)
+$
+
+where $d(0, i)$ and $d(0, j)$ denote the distances from the depot to customers $i$ and $j$ respectively, and $d(i, j)$ is the direct distance between them #cite(<clarke1964savings>). This quantity measures how much total travel distance is saved by linking the two customers on a single route rather than serving each from the depot separately. All pairs are ranked in descending order of savings, and the algorithm greedily merges the two corresponding routes for the highest-ranked pair provided that: (i) both customers are currently at the endpoints of their respective routes, (ii) the customers do not already belong to the same route, and (iii) the combined demand of the merged route does not exceed the vehicle capacity $Q$. This merge step is repeated for each pair in the sorted list until no further feasible merges remain. Because the savings criterion explicitly favors short inter-customer edges over long depot round-trips, CWS consistently produces more compact routes than nearest-neighbor construction.
+
+3. _Ant Colony Optimization_ (ACO). The implementation follows the canonical ACO framework of #cite(<dorigo2004aco>). A pheromone matrix $tau$ of size $(N+1) times (N+1)$ is initialized uniformly to a small constant $tau_0$, where the extra node represents the depot. At each iteration, a colony of $m$ ants constructs complete solutions independently and in parallel. Each ant begins at the depot and repeatedly selects the next customer $j$ from the set $cal(F)$ of unvisited customers whose remaining demand is within the current vehicle's residual capacity. The selection follows a probabilistic transition rule that balances learned pheromone information against problem-specific heuristic knowledge:
 
 $
 p(i, j) = frac(
@@ -92,19 +98,21 @@ p(i, j) = frac(
 )
 $
 
-where $eta_(i j) = 1 slash d(i,j)$ is the heuristic visibility, $cal(F)$ is the set of feasible candidate nodes, and $alpha$ and $beta$ are parameters that control the relative influence of pheromone and heuristic information, respectively. When no feasible customer can be added, the ant returns to the depot and begins a new route. After all ants complete their solutions, pheromone evaporates globally:
+where $eta_(i j) = 1 slash d(i,j)$ is the heuristic visibility favouring shorter edges, and $alpha$ and $beta$ are non-negative exponents controlling the relative weight of pheromone trails versus heuristic attractiveness, respectively. A higher $alpha$ makes ants more likely to reinforce existing good paths, while a higher $beta$ keeps them more sensitive to raw distance. When no customer in $cal(F)$ can be appended without violating the capacity constraint, the ant closes the current route by returning to the depot and dispatches a new vehicle, continuing until all customers are served.
+
+After all $m$ ants have completed their solutions, two pheromone update steps are applied. First, global evaporation decays every pheromone entry by a factor controlled by the evaporation rate $rho in (0, 1]$:
 
 $
 tau_(i j) <- (1 - rho) dot tau_(i j)
 $
 
-and elitist deposition is applied on the edges of the iteration-best solution:
+This prevents indefinite pheromone accumulation and enables the colony to forget poor solutions over time; a larger $rho$ causes faster forgetting and encourages broader exploration. Second, elitist reinforcement deposits additional pheromone exclusively on the edges of the iteration-best solution, rewarding the shortest route found in the current iteration:
 
 $
 tau_(i j) <- tau_(i j) + frac(1, L_"best")
 $
 
-where $L_"best"$ is the total distance of the best solution found in the current iteration and $rho in (0, 1]$ is the evaporation rate. A 2-opt local search is applied to the iteration-best solution prior to pheromone update to improve route quality within each iteration.
+where $L_"best"$ is the total Euclidean distance of the iteration-best solution. Edges on shorter routes therefore receive proportionally stronger reinforcement, biasing future ant decisions toward promising paths. Prior to this pheromone update, a 2-opt local search is applied to the iteration-best solution: all pairs of non-adjacent route edges are considered for reversal, and any swap that strictly reduces the total route length is accepted. This post-construction refinement sharpens solution quality within each iteration without altering the pheromone landscape of other solutions.
 
 == Parameter Configurations
 
@@ -112,7 +120,7 @@ Four ACO parameter configurations are evaluated, as shown in @tbl-configs. Confi
 
 #figure(
   caption: [ACO parameter configurations evaluated in this study.],
-  placement: top,
+  placement: none,
   table(
     columns: (4em, 4em, 4em, 4em, 4em, 5em),
     align: (left, right, right, right, right, right),
@@ -192,7 +200,7 @@ At $N = 25$, performance differences among configurations were narrow, with mean
 #figure(
   image("figures/scalability_plot.svg", width: 88%),
   caption: [Mean total distance per configuration across problem sizes.],
-  placement: top,
+  placement: none,
 ) <fig:scalability>
 
 == Statistical Comparison
@@ -202,7 +210,7 @@ The Friedman omnibus test revealed no statistically significant differences amon
 #figure(
   image("figures/parameter_heatmap.svg", width: 88%),
   caption: [Mean total distance heatmap across ACO parameter configurations and problem sizes.],
-  placement: top,
+  placement: none,
 ) <fig:heatmap>
 
 == Scalability Analysis
@@ -214,5 +222,5 @@ Convergence behavior also varied with scale. At $N = 100$, C1 required a mean of
 #figure(
   image("figures/convergence_curves.svg", width: 88%),
   caption: [Convergence curves showing mean best distance per iteration across configurations and problem sizes.],
-  placement: top,
+  placement: none,
 ) <fig:convergence>
